@@ -1,131 +1,205 @@
 # Reverse Proxy — Librería Pequeño Morrison
 
-Reverse Proxy basado en **Caddy**, punto único de entrada de la plataforma.
-Soporta **HTTP/1.1, HTTP/2 y HTTP/3 (QUIC)** de forma nativa y redirige cada
-solicitud del navegador hacia la **API REST** o el **servidor de WebSockets**
-según la ruta solicitada.
+Reverse Proxy basado en **Caddy**, utilizado como punto único de entrada de la plataforma **Librería Pequeño Morrison**. Este componente recibe todas las solicitudes del navegador y las redirige automáticamente hacia la **API REST**, el **servidor de WebSockets** o el **Frontend**, según la ruta solicitada. Caddy soporta de forma nativa **HTTP/1.1**, **HTTP/2** y **HTTP/3 (QUIC)**, permitiendo demostrar el funcionamiento de los distintos protocolos sin necesidad de configuraciones adicionales.
 
-## Contenido del repositorio
+---
+
+# Contenido del repositorio
 
 | Archivo | Descripción |
-|---|---|
-| `Dockerfile` | Imagen de Caddy con la configuración del proxy. |
-| `Caddyfile` | Configuración de enrutamiento y protocolos. |
-| `.env.example` | Variables de entorno necesarias. |
-| `docker-compose.yml` | Levanta el proxy de forma aislada, para pruebas. |
-| `docker-compose.snippet.yml` | Bloque listo para copiar al `docker-compose.yml` principal. |
+|---------|-------------|
+| `Dockerfile` | Construye la imagen personalizada de Caddy. |
+| `Caddyfile` | Configuración del Reverse Proxy y de los protocolos HTTP. |
+| `.env.example` | Variables de entorno necesarias para el proxy. |
+| `docker-compose.yml` | Orquesta el servicio del Reverse Proxy dentro de la integración del proyecto. |
 
-## 1. Configuración
+---
+
+# 1. Configuración
+
+Antes de iniciar el sistema, copiar el archivo de variables de entorno:
 
 ```bash
 cp .env.example .env
 ```
 
-Editar `.env` con los valores reales:
+Editar el archivo `.env` con los valores correspondientes:
 
-```
+```env
 DOMAIN=localhost
-API_REST_UPSTREAM=api-rest:3000
+API_REST_UPSTREAM=api-rest-gateway:3000
 WEBSOCKET_UPSTREAM=websocket-server:8765
 FRONTEND_UPSTREAM=frontend:8080
 ```
 
-- `DOMAIN`: dominio público del proyecto. Si no hay dominio (pruebas locales
-  o demo), dejar `localhost`; Caddy generará un certificado autofirmado.
-- `API_REST_UPSTREAM` / `WEBSOCKET_UPSTREAM` / `FRONTEND_UPSTREAM`: nombre del
-  servicio (tal como aparece en el `docker-compose.yml`) y puerto interno en
-  el que escucha cada uno.
+## Variables de entorno
 
-## 2. Probar el proxy de forma aislada (opcional)
+| Variable | Descripción |
+|----------|-------------|
+| `DOMAIN` | Dominio del proyecto. Para pruebas locales utilizar `localhost`; Caddy generará automáticamente un certificado autofirmado. |
+| `API_REST_UPSTREAM` | Nombre del servicio y puerto donde escucha la API REST Gateway. |
+| `WEBSOCKET_UPSTREAM` | Nombre del servicio y puerto del servidor WebSocket. |
+| `FRONTEND_UPSTREAM` | Nombre del servicio y puerto del Frontend. |
 
-Antes de integrarlo al repositorio principal se puede levantar solo, con
-contenedores de prueba (`traefik/whoami`) en lugar de la API real:
+---
+
+# 2. Ejecución de la integración
+
+Una vez descargado y descomprimido el archivo **integracion-morrison-Mod2-V5.zip**, ubicar la terminal en la carpeta raíz del proyecto y ejecutar:
 
 ```bash
 docker compose up --build
 ```
 
-Con `DOMAIN=localhost`, ajustar en `.env`:
+Este comando construirá y levantará automáticamente todos los servicios definidos en la integración, incluyendo:
+
+- Reverse Proxy (Caddy)
+- API REST Gateway
+- Servidor gRPC
+- Servidor WebSocket
+- Base de datos
+- Frontend
+
+Cuando todos los contenedores estén ejecutándose, la aplicación podrá accederse desde:
 
 ```
-API_REST_UPSTREAM=api-rest-test:80
-WEBSOCKET_UPSTREAM=websocket-test:80
+https://localhost
 ```
 
-Luego abrir `https://localhost/api/` y `https://localhost/ws` en el
-navegador (el certificado será autofirmado, aceptar la advertencia).
+En modo local el navegador mostrará una advertencia de seguridad debido al certificado autofirmado generado por Caddy; basta con aceptarla para continuar.
 
-## 3. Integración al repositorio principal (Git Submodule)
+---
 
-Desde el repositorio principal:
+# 3. Arquitectura de la integración
 
-```bash
-git submodule add <URL_DE_ESTE_REPOSITORIO> reverse-proxy
-git submodule update --init --recursive
-```
+La integración está compuesta por varios servicios que trabajan de manera conjunta.
 
-Copiar el contenido de `docker-compose.snippet.yml` dentro del
-`docker-compose.yml` principal, ajustando:
+| Servicio | Función |
+|----------|---------|
+| Reverse Proxy | Punto único de entrada utilizando Caddy. |
+| API REST Gateway | Expone los endpoints REST del sistema. |
+| Servidor gRPC | Comunicación interna entre servicios. |
+| Servidor WebSocket | Comunicación en tiempo real con los clientes. |
+| Frontend | Interfaz web de la plataforma. |
+| Base de Datos | Persistencia de la información del sistema. |
 
-- La ruta de `build.context` (debe apuntar a la carpeta `reverse-proxy`).
-- Los nombres de servicio `api-rest` y `websocket-server` a los que usen
-  realmente los otros equipos.
-- Agregar los volúmenes `caddy_data` y `caddy_config` a la sección
-  `volumes:` global del compose principal.
+---
 
-Copiar también `.env.example` como `reverse-proxy/.env` con los valores
-reales de producción/demo.
+# 4. Verificar la versión de HTTP utilizada
 
-## 4. Verificar la versión de HTTP usada por el navegador
+Para comprobar el protocolo utilizado por el navegador:
 
-1. Abrir las **DevTools** del navegador → pestaña **Network**.
-2. Click derecho sobre la cabecera de columnas → habilitar la columna
-   **Protocol**.
-3. Recargar la página: se mostrará `h3` (HTTP/3), `h2` (HTTP/2) o
-   `http/1.1` según lo que el navegador haya negociado con Caddy.
+1. Abrir las herramientas de desarrollador.
+2. Ir a la pestaña **Network**.
+3. Hacer clic derecho sobre las columnas.
+4. Habilitar la columna **Protocol**.
+5. Recargar la página.
 
-## 5. Habilitar / deshabilitar HTTP/3 durante la demostración
+La columna mostrará alguno de los siguientes valores:
 
-En el `Caddyfile`, el bloque global controla los protocolos activos:
+| Valor | Protocolo |
+|-------|-----------|
+| `h3` | HTTP/3 |
+| `h2` | HTTP/2 |
+| `http/1.1` | HTTP/1.1 |
 
-```caddyfile
+---
+
+# 5. Habilitar o deshabilitar HTTP/3
+
+El archivo `Caddyfile` define los protocolos soportados mediante el siguiente bloque:
+
+```caddy
 {
-	servers {
-		protocols h1 h2 h3
-	}
+    servers {
+        protocols h1 h2 h3
+    }
 }
 ```
 
-- **Para deshabilitar HTTP/3**: quitar `h3` de la lista (dejar `protocols h1 h2`).
-- **Para volver a habilitarlo**: agregar `h3` de nuevo.
+## Deshabilitar HTTP/3
 
-Después de editar el archivo, reiniciar el contenedor para aplicar el cambio:
+Eliminar `h3` de la lista:
+
+```caddy
+protocols h1 h2
+```
+
+## Volver a habilitar HTTP/3
+
+Agregar nuevamente:
+
+```caddy
+protocols h1 h2 h3
+```
+
+Aplicar los cambios reiniciando el contenedor:
 
 ```bash
 docker compose restart reverse-proxy
 ```
 
-Esto permite mostrar en vivo cómo el navegador cae automáticamente a
-HTTP/2 (o HTTP/1.1) cuando HTTP/3 no está disponible, y cómo vuelve a
-usar HTTP/3 cuando se rehabilita.
+Esto permite demostrar cómo el navegador negocia automáticamente el mejor protocolo disponible, utilizando HTTP/2 cuando HTTP/3 no está habilitado y regresando a HTTP/3 cuando vuelve a estar disponible.
 
-## 6. Certificados TLS
+---
 
-- **Demo / red local sin dominio público**: se usa `tls internal` en el
-  `Caddyfile`, que genera un certificado autofirmado. El navegador mostrará
-  una advertencia de seguridad la primera vez (normal, aceptar y continuar).
-- **Producción con dominio real**: quitar la línea `tls internal` del
-  `Caddyfile`; Caddy emitirá y renovará automáticamente un certificado
-  válido vía Let's Encrypt usando el valor de `DOMAIN`.
+# 6. Certificados TLS
 
-## 7. Rutas configuradas
+## Desarrollo y demostración
+
+El proyecto utiliza:
+
+```caddy
+tls internal
+```
+
+Con esta configuración, Caddy genera automáticamente un certificado autofirmado. La advertencia mostrada por el navegador durante el primer acceso es completamente normal.
+
+## Producción
+
+Para utilizar certificados válidos emitidos por Let's Encrypt, eliminar la línea:
+
+```caddy
+tls internal
+```
+
+Caddy emitirá y renovará automáticamente el certificado utilizando el dominio definido en la variable `DOMAIN`.
+
+---
+
+# 7. Rutas configuradas
 
 | Ruta | Destino | Protocolo hacia el backend |
-|---|---|---|
-| `/api/*` | API REST | HTTP/1.1 |
-| `/ws*` | Servidor de WebSockets | HTTP/1.1 + Upgrade |
-| `/*` (resto) | Frontend de la librería | HTTP/1.1 |
+|------|---------|----------------------------|
+| `/api/*` | API REST Gateway | HTTP/1.1 |
+| `/ws*` | Servidor WebSocket | HTTP/1.1 + Upgrade |
+| `/*` | Frontend | HTTP/1.1 |
 
-El navegador siempre habla con el reverse proxy usando HTTP/1.1, HTTP/2 o
-HTTP/3, según lo que negocie; el proxy siempre reenvía hacia los backends
-internos usando HTTP/1.1, que es lo único que estos requieren soportar.
+El navegador negocia automáticamente **HTTP/1.1**, **HTTP/2** o **HTTP/3** con el Reverse Proxy, mientras que este reenvía todas las solicitudes a los servicios internos utilizando **HTTP/1.1**, protocolo suficiente para la comunicación entre los componentes de la plataforma.
+
+---
+
+# Arquitectura de comunicación
+
+```text
+                        Cliente
+                           │
+                           │ HTTP/1.1 / HTTP/2 / HTTP/3
+                           ▼
+                 +----------------------+
+                 |    Reverse Proxy     |
+                 |        Caddy         |
+                 +----------------------+
+                    │        │        │
+                    │        │        │
+                    ▼        ▼        ▼
+          API REST Gateway  WebSocket  Frontend
+                 │
+                 ▼
+           Servidor gRPC
+                 │
+                 ▼
+            Base de Datos
+```
+
+El Reverse Proxy centraliza el acceso a todos los servicios de la plataforma, permitiendo que el cliente interactúe mediante HTTP/1.1, HTTP/2 o HTTP/3, mientras que la comunicación hacia los servicios internos se mantiene mediante HTTP/1.1, garantizando compatibilidad y simplicidad en la arquitectura.
