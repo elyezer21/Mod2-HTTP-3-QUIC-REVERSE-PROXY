@@ -1,0 +1,32 @@
+# =========================================================
+# BLOQUE A COPIAR dentro del docker-compose.yml PRINCIPAL
+# =========================================================
+# Ajustar la ruta de "build.context" a la carpeta donde quede
+# el submodulo (por ejemplo: ./reverse-proxy) y los nombres/
+# puertos de "api-rest" y "websocket-server" a los que usen
+# realmente los demas equipos en el compose principal.
+# =========================================================
+
+  reverse-proxy:
+    build:
+      context: ./reverse-proxy      # carpeta del submodulo (este repositorio)
+    container_name: reverse-proxy
+    env_file: ./reverse-proxy/.env
+    ports:
+      - "80:80"
+      - "443:443/tcp"
+      - "443:443/udp"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api-rest
+      - websocket-server
+    restart: unless-stopped
+
+# No olvidar agregar estos volumenes en la seccion "volumes:" del
+# docker-compose principal (para persistir certificados entre reinicios):
+#
+# volumes:
+#   caddy_data:
+#   caddy_config:

@@ -1,0 +1,10 @@
+# Variables de entorno con datos reales (no subir)
+.env
+
+# Datos y certificados generados por Caddy en tiempo de ejecucion
+caddy_data/
+caddy_config/
+
+# Archivos del sistema
+.DS_Store
+*.log

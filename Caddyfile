@@ -1,0 +1,59 @@
+# =========================================================
+# Caddyfile - Reverse Proxy Libreria Pequeño Morrison
+# =========================================================
+# Este archivo define el unico punto de entrada del sistema.
+# Caddy soporta HTTP/1.1, HTTP/2 y HTTP/3 (QUIC) de forma nativa.
+#
+# Variables usadas (definidas en .env / docker-compose):
+#   DOMAIN               -> dominio publico o "localhost" para pruebas
+#   API_REST_UPSTREAM     -> host:puerto del servicio API REST
+#   WEBSOCKET_UPSTREAM    -> host:puerto del servidor de WebSockets
+#   FRONTEND_UPSTREAM     -> host:puerto del frontend (pagina de la libreria)
+# =========================================================
+
+{
+	# Opciones globales del servidor
+	servers {
+		# Para la demo: quitar "h3" de esta lista deshabilita HTTP/3
+		# y fuerza al navegador a negociar solo HTTP/1.1 / HTTP/2.
+		protocols h1 h2 h3
+	}
+}
+
+{$DOMAIN:localhost} {
+
+	encode gzip zstd
+
+	# ---------------------------------------------------
+	# Ruta hacia la API REST
+	# ---------------------------------------------------
+	@api path /api/*
+	handle @api {
+		uri strip_prefix /api
+		reverse_proxy {$API_REST_UPSTREAM:api-rest:3124}
+	}
+
+	# ---------------------------------------------------
+	# Ruta hacia el servidor de WebSockets (notificaciones)
+	# ---------------------------------------------------
+	@ws path /ws*
+	handle @ws {
+		reverse_proxy {$WEBSOCKET_UPSTREAM:websocket-server:8765}
+	}
+
+	# ---------------------------------------------------
+	# Resto de trafico: frontend de la libreria (equipo 1)
+	# ---------------------------------------------------
+	handle {
+		reverse_proxy {$FRONTEND_UPSTREAM:frontend:80}
+	}
+
+	# ---------------------------------------------------
+	# Certificados TLS
+	# ---------------------------------------------------
+	# - Si DOMAIN es un dominio real y publico, Caddy emite
+	#   certificados automaticamente via Let's Encrypt (quitar "tls internal").
+	# - Para pruebas locales / demo sin dominio publico, se usa
+	#   un certificado autofirmado generado por la propia Caddy.
+	tls internal
+}
